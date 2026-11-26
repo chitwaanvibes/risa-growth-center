@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CampusFest Sponsor Growth Center</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231b64be'/%3E%3Cpath d='M8 22l5-6 4 3 7-9' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div class="brand">Sponsor Growth Center<small>CampusFest · Bengaluru · Challenge B: sponsorship cash</small></div>
+      <div class="spacer"></div>
+      <label class="ctl">Workspace <select id="ws"></select></label>
+      <label class="ctl">As of <input id="asof" type="date"></label>
+      <button class="btn sm" id="latest" title="Jump to the workspace's latest date">Latest</button>
+      <span id="store" class="pill">Loading…</span>
+      <button class="btn primary sm" id="cp-toggle">AI Copilot</button>
+    </header>
+    <nav class="side" id="nav"></nav>
+    <main id="main"><p class="muted">Loading data…</p></main>
+    <aside class="copilot" id="copilot"></aside>
+  </div>
+  <div class="tip" id="tip"></div>
+  <dialog id="dlg"></dialog>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
