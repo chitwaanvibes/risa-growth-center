@@ -402,6 +402,27 @@ export function bottlenecks(S, cid) {
   return { campaigns: list, portfolio };
 }
 
+// Splits a change in projected collected cash into its parts, so a drop can be explained rather than just reported.
+function projectionBridge(a, b) {
+  const pa = a.projection || {}, pb = b.projection || {}, r = pb.collection_rate ?? pa.collection_rate ?? 1;
+  const d = k => Math.round((pb[k] || 0) - (pa[k] || 0));
+  const fa = new Map((pa.future_by_campaign || []).map(f => [f.id, f]));
+  return {
+    note: 'projected collected = collected + collection_rate × (unpaid signed + weighted pipeline + expected new deals). Expected new deals = remaining brands at the recent weekly run-rate (capped by plan) × value per brand (blend of observed and plan).',
+    collected_change_inr: d('collected_inr'),
+    unpaid_signed_change_x_rate_inr: Math.round(d('unpaid_signed_inr') * r),
+    weighted_pipeline_change_x_rate_inr: Math.round(d('weighted_pipeline_inr') * r),
+    expected_new_deals_change_x_rate_inr: Math.round(d('future_signed_inr') * r),
+    days_left_sourcing: { from: pa.days_left_sourcing, to: pb.days_left_sourcing },
+    expected_new_deals_by_campaign: (pb.future_by_campaign || []).map(f => {
+      const o = fa.get(f.id) || {};
+      return { id: f.id, expected_signed_from_inr: o.expected_signed_inr ?? null, expected_signed_to_inr: f.expected_signed_inr,
+        weekly_brand_rate: { from: o.weekly_brand_rate ?? null, to: f.weekly_brand_rate }, brands_left: { from: o.brands_left ?? null, to: f.brands_left },
+        value_per_brand_inr: { from: o.value_per_brand_inr ?? null, to: f.value_per_brand_inr }, mature_brands: { from: o.mature_brands ?? null, to: f.mature_brands } };
+    }),
+  };
+}
+
 export function drivers(W, fromDate, toDate) {
   const a = snapshot(W, fromDate, { series: false }); const b = snapshot(W, toDate, { series: false });
   const keys = ['brands_worked', 'meetings_held', 'qualified', 'opportunities', 'signed', 'signed_cash_inr', 'received_inr', 'weighted_pipeline_inr', 'spend_inr'];
@@ -414,7 +435,8 @@ export function drivers(W, fromDate, toDate) {
     .map(h => ({ date: istDate(h.effective_at), opportunity_id: h.opportunity_id, brand: h.brand_name || h.opportunity_id, stage: h.stage, value_inr: h.proposed_value_inr }));
   const received = W.tables.payments.filter(p => p.received_at && ts(p.received_at) > lo && ts(p.received_at) <= hi).map(p => ({ date: istDate(p.received_at), opportunity_id: p.opportunity_id, amount_inr: p.amount_inr, kind: p.kind }));
   return { from: fromDate, to: toDate, total: delta(a.totals, b.totals), by_campaign: byCampaign, stage_changes: stageMoves.slice(0, 60), stage_changes_count: stageMoves.length, payments_received: received,
-    projection_change_inr: (b.projection.projected_collected_inr || 0) - (a.projection.projected_collected_inr || 0) };
+    projection_change_inr: (b.projection.projected_collected_inr || 0) - (a.projection.projected_collected_inr || 0),
+    projection_bridge: projectionBridge(a, b) };
 }
 
 // what-if: move budget between campaigns, using observed return when the sample is big enough
