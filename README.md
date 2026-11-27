@@ -1,7 +1,7 @@
 # CampusFest Sponsor Growth Center
 
 **RISA Labs · Growth APM assignment · Challenge B: Sponsorship Growth · Bengaluru**
-Aditya Biswas (23HS10002), IIT Kharagpur
+Aditya Biswas (23HS10003), IIT Kharagpur
 
 | Deliverable | Where |
 |---|---|
@@ -113,11 +113,12 @@ The meeting → signed conversion uses **mature meetings only**: those held at l
 
 | Brief requirement | Where |
 |---|---|
-| Measure: funnel, campaign KPIs, targets vs actuals, conversion, budgets, projection | **Overview**: tiles, funnel, weekly pace vs plan, projection build-up, campaign table |
-| Diagnose: winners, underperformers, bottlenecks, drivers | **Diagnose**: per-campaign stage vs plan (or portfolio) with bottleneck, portfolio conversion, "what changed" between any two dates, stalled deals, data-quality notes |
-| Support decisions | **Decide**: scale/change/stop calls, editable rules, budget what-if (marginal model: extra brands at plan cost per brand, valued at a blend of observed and plan value per brand, discounted to 75% and capped by the receiving campaign's brand headroom), ranked bets |
-| Manage execution | **Execute**: tasks (owner, due date, status, priority), deals (stage changes as new dated versions), invoices and payments, campaigns and budgets, spend ledger. **Data**: edit any table, CSV import/export, assumptions, activity log, reset |
+| Measure: funnel, campaign KPIs, targets vs actuals, conversion, budgets, projection | **Overview**: tiles, sponsor funnel (brands) and cash funnel (₹ in play → expected → signed → invoiced → collected, overdue flagged), weekly pace vs plan, projection build-up, campaign table; sidebar campaign pulse (projection vs target, days left, overdue and stalled counts) |
+| Diagnose: winners, underperformers, bottlenecks, drivers | **Diagnose**: per-campaign stage vs plan (or portfolio) with bottleneck, portfolio conversion, performance by industry (brands, win rate, average deal, signed and weighted ₹), "what changed" between any two dates, stalled deals, data-quality notes |
+| Support decisions | **Decide**: scale/change/stop calls, editable rules, budget efficiency (spend vs budget, return per ₹ spent, cost per signed deal; enablers excluded from return), budget what-if (marginal model: extra brands at plan cost per brand, valued at a blend of observed and plan value per brand, discounted to 75% and capped by the receiving campaign's brand headroom), ranked bets |
+| Manage execution | **Execute**: owner workload (open, overdue, due in 7 days, open and stalled deals, weighted pipeline per owner), tasks (owner, due date, status, priority), deals (stage changes as new dated versions), invoices and payments, campaigns and budgets, spend ledger. **Data**: edit any table, CSV import/export, assumptions, activity log, reset |
 | AI copilot | Right panel on every page |
+| Onboarding | **Guided tour** (14 steps, spotlight on each module, keyboard and mobile friendly). Opens on first visit; replay from **Tour** in the header or the sidebar. Day and night themes via the header switch (remembered per browser). |
 
 **Forecast.** Projected collected = collected + collection rate × (unpaid signed + weighted open pipeline + expected new deals). Weighted pipeline is value × stage probability (prospecting 8%, contacted 15%, proposal 40%, negotiating 65%), halved if stalled. Expected new deals = (brands touched recently without a deal + run-rate brands until sourcing closes) × value per brand. Value per brand blends observed mature-brand value with plan value, with plan weighted as 10 brands (credibility shrinkage).
 
