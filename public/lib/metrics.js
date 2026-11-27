@@ -419,23 +419,43 @@ export function drivers(W, fromDate, toDate) {
 
 // what-if: move budget between campaigns, using observed return when the sample is big enough
 export function simulateReallocation(S, fromId, toId, amount) {
-  const val = c => {
-    if (!c) return null;
-    const observed = c.spend_inr > 0 && c.brands_worked >= S.assumptions.min_sample_projection ? (c.signed_cash_inr + c.weighted_pipeline_inr) / c.spend_inr : null;
-    const planned = c.budget_inr > 0 && c.plan.base_signed_inr ? c.plan.base_signed_inr / c.budget_inr : null;
-    return { per_rupee: observed ?? planned, basis: observed !== null ? 'observed (signed + weighted pipeline) / spend' : planned !== null ? 'plan (base signed / budget)' : 'none' };
-  };
+  // Marginal model, not average return: money buys extra brands at plan cost per brand; each extra brand is worth the
+  // credibility-weighted blend of observed and plan value per brand, discounted because marginal brands are weaker.
+  // The receiver is capped at its stretch headroom; the giver only loses brands it has not worked yet.
+  const K = S.assumptions.credibility_k ?? 10, MARG = S.assumptions.marginal_brand_quality ?? 0.75;
   const A = S.campaigns.find(c => c.id === fromId), B = S.campaigns.find(c => c.id === toId);
   if (!A || !B) return { error: 'Unknown campaign id' };
-  const va = val(A), vb = val(B);
-  if (va.per_rupee === null || vb.per_rupee === null) return { error: 'Not enough spend or plan data to estimate returns for one of these campaigns', from: va, to: vb };
-  const remainingA = A.budget_inr ? A.budget_inr - A.spend_inr : null;
-  const change = amount * (vb.per_rupee - va.per_rupee);
-  return { from: { id: A.id, name: A.name, ...va, remaining_budget_inr: remainingA }, to: { id: B.id, name: B.name, ...vb },
-    amount_inr: amount, expected_signed_change_inr: Math.round(change), expected_collected_change_inr: Math.round(change * S.assumptions.collection_rate),
-    warnings: [remainingA !== null && amount > remainingA ? `Only ${inr(remainingA)} of ${A.name}'s budget is unspent` : null,
-      va.basis !== vb.basis ? `Mixed bases: ${A.name} uses ${va.basis}; ${B.name} uses ${vb.basis}. Treat as directional only.` : null,
-      'Assumes the receiving campaign keeps its current return per rupee (no diminishing returns). Warm sources such as alumni are capacity-limited.'].filter(Boolean) };
+  const unit = c => {
+    const p = c.plan || {};
+    if (!(c.budget_inr > 0) || !(p.base_brands > 0)) return { error: `${c.name} has no brand plan or budget (it is ${c.type === 'enabler' ? 'an enabler that changes deal terms, not a sourcing channel' : 'not costed per brand'}), so a budget move cannot be valued for it` };
+    const cost = c.budget_inr / p.base_brands;
+    const planV = (p.cash_conv || 0) * (p.deal_inr || 0);
+    const n = c.brands_worked || 0;
+    const obsV = n > 0 ? (c.signed_cash_inr + c.weighted_pipeline_inr) / n : null;
+    const v = obsV === null ? planV : (n * obsV + K * planV) / (n + K);
+    return { cost_per_brand_inr: Math.round(cost), value_per_brand_inr: Math.round(v), observed_value_per_brand_inr: obsV === null ? null : Math.round(obsV), plan_value_per_brand_inr: Math.round(planV), brands_worked: n,
+      basis: `blend of observed (n=${n}) and plan value per brand, plan weighted as ${K} brands` };
+  };
+  const ua = unit(A), ub = unit(B);
+  if (ua.error || ub.error) return { error: ua.error || ub.error };
+  const unspentA = Math.max(0, (A.budget_inr || 0) - (A.spend_inr || 0));
+  const moved = Math.min(amount, unspentA);
+  const headroomB = Math.max(0, (B.plan.stretch_brands || B.plan.base_brands) - Math.max(B.plan.base_brands, B.brands_worked));
+  const unworkedA = Math.max(0, A.plan.base_brands - A.brands_worked);
+  const brandsB = Math.min(moved / ub.cost_per_brand_inr, headroomB);
+  const brandsA = Math.min(moved / ua.cost_per_brand_inr, unworkedA);
+  const gain = brandsB * ub.value_per_brand_inr * MARG, loss = brandsA * ua.value_per_brand_inr * MARG;
+  const net = gain - loss;
+  return {
+    from: { id: A.id, name: A.name, ...ua, unspent_budget_inr: unspentA, unworked_planned_brands: unworkedA, brands_given_up: +brandsA.toFixed(1), signed_lost_inr: Math.round(loss), per_rupee: moved ? loss / moved : 0 },
+    to: { id: B.id, name: B.name, ...ub, headroom_brands: headroomB, extra_brands: +brandsB.toFixed(1), signed_gained_inr: Math.round(gain), per_rupee: moved ? gain / moved : 0 },
+    amount_inr: amount, amount_movable_inr: moved, marginal_brand_quality: MARG,
+    expected_signed_change_inr: Math.round(net), expected_collected_change_inr: Math.round(net * S.assumptions.collection_rate),
+    warnings: [moved < amount ? `Only ${inr(unspentA)} of ${A.name}'s budget is unspent, so only that much can move` : null,
+      headroomB === 0 ? `${B.name} has no headroom: its plan already funds every reachable brand (${B.plan.stretch_brands || B.plan.base_brands}), so extra money buys nothing` : null,
+      headroomB > 0 && moved / ub.cost_per_brand_inr > headroomB ? `${B.name} can only use about ${inr(headroomB * ub.cost_per_brand_inr)} before it runs out of brands` : null,
+      B.brands_worked < S.assumptions.min_sample_projection ? `${B.name} has worked only ${B.brands_worked} brands, so its value per brand leans on the plan` : null,
+      'Value per extra brand is signed + weighted pipeline, discounted to 75% for weaker marginal brands; brands added late may not sign before the deadline. Directional only.'].filter(Boolean) };
 }
 
 export function dataQuality(W, S) {
