@@ -3,6 +3,7 @@ import { TABLES, STAGES, TASK_STATUS, OPEN_STAGES } from './lib/schema.js';
 import { snapshot, bottlenecks, drivers, simulateReallocation, dataQuality, calendar, inr, pct, addDays, istDate, ts, endOfDay } from './lib/metrics.js';
 import { WORKSPACES, loadWorkspace } from './lib/workspaces.js';
 import { validateOps, nextId } from './lib/ops.js';
+import { ico, decorate } from './lib/icons.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -57,7 +58,7 @@ function recompute() {
 }
 
 // ---------- shell ----------
-const TABS = [['overview', 'Overview', 'Measure'], ['diagnose', 'Diagnose', 'Diagnose'], ['decide', 'Decide', 'Support decisions'], ['execute', 'Execute', 'Manage execution'], ['data', 'Data & settings', 'Data']];
+const TABS = [['overview', 'Overview', 'Measure'], ['diagnose', 'Diagnose', 'Diagnose'], ['decide', 'Decide', 'Support decisions'], ['execute', 'Execute', 'Manage execution'], ['data', 'Data & settings', 'Records and setup']];
 function render() {
   $('#ws').innerHTML = Object.values(WORKSPACES).map(w => `<option value="${w.id}" ${w.id === st.ws ? 'selected' : ''}>${esc(w.short)}</option>`).join('');
   $('#asof').value = st.asOf;
@@ -66,10 +67,12 @@ function render() {
   pill.className = `pill ${s === 'supabase' ? 'ok' : s === 'file' ? 'ok' : 'bad'}`;
   pill.textContent = s === 'supabase' ? 'Saved to Supabase' : s === 'file' ? 'Saved locally (dev)' : s === 'memory' ? 'Not persistent: add Supabase' : 'Offline';
   pill.title = st.server.error || (s === 'memory' ? 'SUPABASE_URL / SUPABASE_SECRET_KEY are not set on the server; edits disappear on restart.' : '');
-  $('#nav').innerHTML = TABS.map(([id, label]) => `<button data-tab="${id}" class="${st.tab === id ? 'on' : ''}">${label}</button>`).join('') +
-    `<div class="hint">${st.W.simulated ? '<span class="tag sim">Simulated</span>' : '<span class="tag src">Source data</span>'}<br><br>${esc(WORKSPACES[st.ws].description)}<br><br>Every number is recomputed from the records as of the selected date. Edits save to the database and update all views and the copilot.</div>`;
+  $('#nav').innerHTML = `<div class="nav-label">Menu</div>` + TABS.map(([id, label, stage]) => `<button data-tab="${id}" class="${st.tab === id ? 'on' : ''}">${ico(id)}<span>${label}${stage !== label ? `<small>${stage}</small>` : ''}</span></button>`).join('') +
+    `<div class="hint"><div class="hint-hd">${ico(st.W.simulated ? 'sparkles' : 'data')}<b>${esc(WORKSPACES[st.ws].short)}</b>${st.W.simulated ? '<span class="tag sim">Simulated</span>' : '<span class="tag src">Source</span>'}</div><p>${esc(WORKSPACES[st.ws].description)}</p><p class="hint-note">${ico('info')}Every number is recomputed from the records as of the selected date. Edits save to the database and update all views and the copilot.</p></div>
+    <div class="nav-foot"><span class="av">AB</span><span>Aditya Biswas<small>23HS10002 · IIT Kharagpur</small></span></div>`;
   const view = { overview, diagnose, decide, execute, data: dataView }[st.tab];
-  $('#main').innerHTML = view();
+  const tab = TABS.find(x => x[0] === st.tab);
+  $('#main').innerHTML = decorate(view().replace('<h1>', `<div class="eyebrow"><span>${ico(tab[0])}</span>${esc(tab[2])}</div><h1>`));
   $('#copilot').classList.toggle('closed', !st.cpOpen);
 }
 function banner() {
@@ -101,11 +104,17 @@ function overview() {
     tile('Budget', S.coverage.has_budgets ? `${inr(S.budget.spent_inr)} <span class="muted small">/ ${inr(S.budget.approved_inr)}</span>` : 'Not in data', S.coverage.has_budgets ? `${pct(S.budget.spent_inr / S.budget.approved_inr)} used in week ${S.week}` : 'No spend or budget records in the source', S.coverage.has_budgets ? S.budget.spent_inr / S.budget.approved_inr : null),
     tile('Tasks', `${S.tasks.filter(x => x.status !== 'done').length} open`, `<span class="${S.tasks.some(x => x.overdue) ? 'bad' : ''}">${S.tasks.filter(x => x.overdue).length} overdue</span> · ${S.tasks.filter(x => x.status === 'done').length} done`),
   ];
+  const TI = ['wallet', 'pen', 'trend', 'handshake', 'badge', 'layers', 'coins', 'tasks'];
+  const iconTiles = tiles.map((h, i) => h.replace('<div class="k">', `<div class="ic t${i % 4}">${ico(TI[i])}</div><div class="k">`));
   return `${banner()}<h1>${esc(S.workspace_name)}</h1>
     <p class="sub">As of ${fmtDate(S.as_of)} · week ${S.week} · ${daysToEvent > 0 ? `${daysToEvent} day${daysToEvent === 1 ? '' : 's'} to the festival` : 'festival date passed'} · sourcing window ${endOfDay(S.as_of) > ts(S.calendar.sourcing_ends + 'T23:59:59+05:30') ? 'closed' : `open until ${fmtDate(S.calendar.sourcing_ends)}`}${S.target ? ` · target: ${esc(S.target.target_version)}` : ''}</p>
-    <div class="grid g6">${tiles.join('')}</div>
+    <div class="sec">Headline numbers</div>
+    <div class="grid g6">${iconTiles.join('')}</div>
+    <div class="sec">Funnel and pace</div>
     <div class="grid g2"><div class="card"><h2>Sponsor funnel</h2>${funnel()}</div><div class="card"><h2>Pace: cumulative cash by week</h2>${paceChart()}</div></div>
+    <div class="sec">Forecast and calls</div>
     <div class="grid g2"><div class="card"><h2>How the projection is built</h2>${projectionTable()}</div><div class="card"><h2>Current calls by campaign</h2>${decisionList()}</div></div>
+    <div class="sec">Campaigns</div>
     <div class="card"><h2>Campaign performance</h2>${campaignTable()}</div>`;
 }
 const fmtDate = d => new Date(`${d}T12:00:00+05:30`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -244,7 +253,7 @@ function decide() {
   const opts = sel => camps.map(c => `<option value="${c.id}" ${c.id === sel ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
   const bets = camps.filter(c => c.plan.base_incremental_inr || c.plan.stretch_incremental_inr).sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
   return `${banner()}<h1>Decide</h1><p class="sub">Scale, change or stop each campaign against thresholds set before launch, then move budget and create the follow-up.</p>
-  <div class="grid g6">${camps.map(c => { const d = S.decisions[c.id]; return `<div class="card tile"><div class="k">${esc(c.name)}</div><div style="margin:6px 0">${badge(d.decision)}</div><div class="d">${esc(d.action || '')}</div>
+  <div class="grid g6">${camps.map(c => { const d = S.decisions[c.id]; return `<div class="card tile dec ${esc(d.decision)}"><div class="ic">${ico(d.decision === 'scale' ? 'trend' : d.decision === 'stop' ? 'close' : d.decision === 'change' ? 'sliders' : 'clock')}</div><div class="k">${esc(c.name)}</div><div style="margin:6px 0">${badge(d.decision)}</div><div class="d">${esc(d.action || '')}</div>
     ${d.action && ['scale', 'change', 'stop'].includes(d.decision) ? `<button class="btn sm" style="margin-top:8px" data-act="task-from-decision" data-id="${esc(c.id)}">Turn into task</button>` : ''}</div>`; }).join('')}</div>
   <div class="card"><h2>Rules <span class="muted small">primary rule decides; a breached guardrail turns Scale into Change and Change into Stop</span></h2><div class="tbl"><table>
     <thead><tr><th>Campaign</th><th>Role</th><th>Metric</th><th class="n">Value</th><th class="n">n / min</th><th class="n">Scale at</th><th class="n">Stop at</th><th>Status</th><th>Triggered action</th><th></th></tr></thead><tbody>
@@ -269,7 +278,7 @@ const fmtMetric = (m, v) => (v === null || v === undefined ? '—' : /_inr$/.tes
 function execute() {
   const sub = { tasks: tasksView, deals: dealsView, payments: paymentsView, campaigns: campaignsView, spend: spendView }[st.exec]();
   return `${banner()}<h1>Execute</h1><p class="sub">Campaigns, deals, payments, spend and tasks. Every change saves to the database and updates the analytics.</p>
-  <div class="tabs">${[['tasks', 'Tasks'], ['deals', 'Deals'], ['payments', 'Invoices & payments'], ['campaigns', 'Campaigns & budgets'], ['spend', 'Spend']].map(([k, l]) => `<button data-exec="${k}" class="${st.exec === k ? 'on' : ''}">${l}</button>`).join('')}</div>${sub}`;
+  <div class="tabs">${[['tasks', 'Tasks', 'tasks'], ['deals', 'Deals', 'handshake'], ['payments', 'Invoices & payments', 'receipt'], ['campaigns', 'Campaigns & budgets', 'megaphone'], ['spend', 'Spend', 'coins']].map(([k, l, i]) => `<button data-exec="${k}" class="${st.exec === k ? 'on' : ''}">${ico(i)}${l}</button>`).join('')}</div>${sub}`;
 }
 const owners = () => [...new Set([...st.W.tables.campaigns.map(c => c.owner_name), ...st.W.tables.tasks.map(t => t.owner_name), ...st.W.tables.brands.map(b => b.owner_name)].filter(Boolean))].sort();
 function tasksView() {
@@ -542,15 +551,15 @@ function md(text) {
 }
 function renderCopilot() {
   const msgs = st.chat[st.ws];
-  $('#copilot').innerHTML = `<div class="cp-hd"><b>AI Growth Analyst</b><span class="tag">${st.server.ai === false ? 'not configured' : 'Gemini · live data'}</span><button class="btn sm" data-cp="clear">Clear</button><button class="btn sm" data-cp="close">✕</button></div>
+  $('#copilot').innerHTML = decorate(`<div class="cp-hd"><span class="cp-logo">${ico('sparkles')}</span><b>AI Growth Analyst<small><i class="${st.server.ai === false ? 'off' : 'on'}"></i>${st.server.ai === false ? 'Not configured' : 'Gemini · reading live data'}</small></b><button class="btn sm ghost" data-cp="clear" title="Clear chat">${ico('reset')}</button><button class="btn sm ghost" data-cp="close" title="Close">${ico('close')}</button></div>
   <div class="cp-msgs" id="cp-msgs">${msgs.length ? '' : `<div class="msg model"><p>I answer from this workspace's live records as of the dashboard date (${fmtDate(st.asOf)}), show which data I used, and draft tasks or changes for you to confirm. I'll say so when the data can't answer.</p></div>`}
   ${msgs.map((m, i) => `<div class="msg ${m.role}">${m.role === 'model' ? md(m.text) : esc(m.text)}
     ${m.trace?.length ? `<details class="trace"><summary>Data used: ${[...new Set(m.trace.map(t => t.tool))].join(', ')}</summary>${m.trace.map(t => `<div>${esc(t.tool)}(${esc(JSON.stringify(t.args))}) → ${esc(t.summary)}</div>`).join('')}</details>` : ''}
     ${m.model ? `<div class="trace">${esc(m.model)}</div>` : ''}</div>
     ${(m.actions || []).map((a, j) => `<div class="action"><b>Proposed:</b> ${esc(a.summary)}<div class="why">${esc(a.reason)}</div>${a.state === 'pending' ? `<div class="row"><button class="btn primary sm" data-cp="confirm" data-i="${i}" data-j="${j}">Confirm</button>${a.ops[0]?.tbl === 'tasks' ? `<button class="btn sm" data-cp="edit" data-i="${i}" data-j="${j}">Edit</button>` : ''}<button class="btn sm" data-cp="cancel" data-i="${i}" data-j="${j}">Cancel</button></div>` : `<div class="small ${a.state === 'confirmed' ? 'good' : 'muted'}">${a.state === 'confirmed' ? '✓ Confirmed and saved' : 'Cancelled'}</div>`}</div>`).join('')}`).join('')}
   ${st.busy ? '<div class="typing">Analysing live data…</div>' : ''}</div>
-  ${msgs.length ? '' : `<div class="chips">${SUGGEST[st.ws].map(s => `<button data-cp="ask" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div>`}
-  <form class="cp-in" id="cp-form"><textarea id="cp-text" placeholder="Ask about performance, bottlenecks, what to scale or stop…" ${st.busy ? 'disabled' : ''}></textarea><button class="btn primary" ${st.busy ? 'disabled' : ''}>Send</button></form>`;
+  ${msgs.length ? '' : `<div class="chips"><div class="chips-hd">Try asking</div>${SUGGEST[st.ws].map(s => `<button data-cp="ask" data-q="${esc(s)}"><span>${esc(s)}</span>${ico('arrow')}</button>`).join('')}</div>`}
+  <form class="cp-in" id="cp-form"><textarea id="cp-text" placeholder="Ask about performance, bottlenecks, what to scale or stop…" ${st.busy ? 'disabled' : ''}></textarea><button class="btn primary send" title="Send" ${st.busy ? 'disabled' : ''}>${ico('send')}</button></form>`);
   const box = $('#cp-msgs'); box.scrollTop = box.scrollHeight;
 }
 function history(extraUser) {
