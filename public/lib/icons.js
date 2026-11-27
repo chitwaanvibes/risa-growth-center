@@ -49,7 +49,7 @@ const HEAD = [
   [/^Sponsor funnel/, 'funnel'], [/^Pace/, 'chart'], [/^How the projection/, 'calculator'], [/^Current calls/, 'signpost'],
   [/^Campaign performance/, 'table'], [/^Portfolio stage/, 'funnel'], [/^Stalled/, 'clock'], [/^Data quality/, 'alert'],
   [/^Rules/, 'sliders'], [/^Budget what-if/, 'shuffle'], [/^The five bets/, 'rocket'], [/^Assumptions/, 'sliders'],
-  [/^Activity log/, 'history'], [/^What changed|^Drivers|^Change/, 'trend'], [/^Payments|^Invoices/, 'receipt'],
+  [/^Activity log/, 'history'], [/^Cash funnel/, 'wallet'], [/^Performance by industry/, 'layers'], [/^Budget efficiency/, 'coins'], [/^Owner workload/, 'tasks'], [/^What changed|^Drivers|^Change/, 'trend'], [/^Payments|^Invoices/, 'receipt'],
 ];
 const BTN = [
   [/^\+ ?/, 'plus', true], [/^Edit$/, 'edit'], [/^Delete$/, 'trash'], [/^Turn into task$/, 'tasks'], [/^Mark received$/, 'check'],
