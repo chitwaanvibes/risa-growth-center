@@ -255,7 +255,7 @@ function decide() {
   <div class="grid g2"><div class="card"><h2>Budget what-if</h2>
     <div class="form"><label>Move from<select class="in" data-chg="sim-from">${opts(st.sim.from)}</select></label><label>To<select class="in" data-chg="sim-to">${opts(st.sim.to)}</select></label><label>Amount (₹)<input class="in" type="number" min="0" step="1000" data-chg="sim-amt" value="${esc(st.sim.amt)}"></label></div>
     ${sim ? (sim.error ? `<p class="small bad">${esc(sim.error)}</p>` : `<p>Expected change: <b>${signInr(sim.expected_signed_change_inr)}</b> signed, <b>${signInr(sim.expected_collected_change_inr)}</b> collected.</p>
-      <p class="small muted">${esc(sim.from.name)}: ${num(sim.from.per_rupee, 2)} ₹ per ₹ (${esc(sim.from.basis)}). ${esc(sim.to.name)}: ${num(sim.to.per_rupee, 2)} ₹ per ₹ (${esc(sim.to.basis)}).</p>
+      <p class="small muted">${esc(sim.to.name)} gains ${num(sim.to.extra_brands, 1)} brands (headroom ${num(sim.to.headroom_brands)}) at ${inr(sim.to.cost_per_brand_inr)} each, worth ${inr(sim.to.value_per_brand_inr)} per brand before the marginal discount. ${esc(sim.from.name)} gives up ${num(sim.from.brands_given_up, 1)} unworked brands worth ${inr(sim.from.value_per_brand_inr)} each.</p>
       ${sim.warnings.map(w => `<p class="small warn">⚠ ${esc(w)}</p>`).join('')}
       <button class="btn primary sm" data-act="apply-shift">Apply budget move</button>`) : '<p class="muted small">Pick two different campaigns.</p>'}</div>
   <div class="card"><h2>The five bets</h2>${bets.length ? `<table><thead><tr><th>#</th><th>Bet</th><th class="n">Incremental collected (base / stretch)</th><th class="n">Budget</th><th>Plan call</th></tr></thead><tbody>
