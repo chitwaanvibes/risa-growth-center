@@ -5,8 +5,8 @@ Aditya Biswas (23HS10002), IIT Kharagpur
 
 | Deliverable | Where |
 |---|---|
-| Three-slide strategy (PDF) | `deck/` (added with the final deck) |
-| Working product | Vercel link: `https://<your-project>.vercel.app` |
+| Three-slide strategy (PDF) | `deck/Aditya_Biswas_RISA_Growth_APM_ChallengeB.pdf` (editable `.pptx` alongside) |
+| Working product | https://risa-growth-center-rho.vercel.app |
 | This README | Research, assumptions, calculations, sources, framework, setup, tools, limitations |
 
 ---
@@ -126,7 +126,7 @@ The meeting → signed conversion uses **mature meetings only**: those held at l
 - Changes are **drafted** with `propose_action` (task, task update, budget/status, deal stage, payment, rule thresholds) and saved only when the user clicks **Confirm**. Task drafts can be edited first.
 - Honest uncertainty: the system prompt requires the copilot to label points as evidence, simulated or assumption, quote sample sizes, check the data catalog's known gaps before declaring something unanswerable, and avoid causal claims.
 - Each answer shows the tools and arguments used ("Data used"). Follow-ups keep conversation context. Confirmed actions are fed back so the model knows what changed.
-- Thought signatures and function-call IDs are passed back exactly, as Gemini 3 requires. If a model hits a quota it falls back to the next one (`GEMINI_MODELS`).
+- Thought signatures and function-call IDs are passed back exactly, as Gemini 3 requires. If a model hits a quota, errors or is slow it falls back to the next one (`GEMINI_MODELS`). Thinking is set to low (`GEMINI_THINKING`) and each turn has a time budget, so an answer comes back well inside the function limit.
 
 **Persistence.** Seed data is read-only in code. Every edit is a full row in Supabase `app_records(ws, tbl, id, data, deleted)` layered on top, so "reset" restores the original. Writes are validated on the server (types, enums, referential integrity, stage/value rules). The browser never sees database keys.
 
