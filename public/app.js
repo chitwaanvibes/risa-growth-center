@@ -72,8 +72,10 @@ function render() {
     <div class="nav-foot"><span class="av">AB</span><span>Aditya Biswas<small>23HS10002 · IIT Kharagpur</small></span></div>`;
   const view = { overview, diagnose, decide, execute, data: dataView }[st.tab];
   const tab = TABS.find(x => x[0] === st.tab);
+  CHARTS.length = 0;
   $('#main').innerHTML = decorate(view().replace('<h1>', `<div class="eyebrow"><span>${ico(tab[0])}</span>${esc(tab[2])}</div><h1>`));
   $('#copilot').classList.toggle('closed', !st.cpOpen);
+  fitCharts();
 }
 function banner() {
   const S = st.S;
@@ -133,34 +135,53 @@ function funnel() {
     return `<div class="stage" title="${esc(h)}"><div>${l}</div><div class="meter"><i style="width:${(v / max) * 100}%;background:var(--s1)"></i></div><div class="n" style="text-align:right"><b>${num(v)}</b> <span class="muted">${conv !== null ? pct(conv) : ''}</span></div></div>`;
   }).join('') + `<p class="small muted">Percent = conversion from the previous step of the same population. Qualified brands and opportunities are separate records, so they show counts only.</p>`;
 }
-function lineChart(series, { xs, yFmt = inr, height = 230, hline } = {}) {
-  const W = 720, H = Math.round(height * 1.2), L = 58, R = 72, Tp = 14, B = 30;
+// Charts are drawn at the real pixel width of their container (see fitCharts), so text and strokes never scale.
+const CHARTS = [];
+function lineChart(series, opts = {}) {
+  const id = CHARTS.push({ series, opts }) - 1;
+  return `<div class="chart-wrap" data-chart="${id}">${chartSvg(series, opts, 720)}</div>
+    <div class="legend">${series.map(s => `<span><i class="${s.dash ? 'dash' : ''}" style="border-color:${s.color}"></i>${esc(s.name)}</span>`).join('')}</div>`;
+}
+function chartSvg(series, { xs, yFmt = inr, height = 230, hline } = {}, W = 720) {
+  const narrow = W < 460;
+  const H = narrow ? 220 : 264, L = narrow ? 48 : 58, R = narrow ? 56 : 68, Tp = 16, B = 30;
   const ys = series.flatMap(s => s.points.map(p => p.y)).filter(Number.isFinite).concat(hline ? [hline.y] : []);
   const ymax = Math.max(1, ...ys) * 1.08;
   const xmin = xs[0], xmax = xs[xs.length - 1];
   const X = x => L + ((x - xmin) / Math.max(1, xmax - xmin)) * (W - L - R);
   const Y = y => Tp + (1 - y / ymax) * (H - Tp - B);
   const ticks = 4; let g = '';
-  for (let i = 0; i <= ticks; i++) { const v = (ymax / ticks) * i; g += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)"/><text x="${L - 10}" y="${Y(v) + 4}" text-anchor="end">${yFmt(v)}</text>`; }
-  xs.forEach(x => { g += `<text x="${X(x)}" y="${H - 9}" text-anchor="middle">W${x}</text>`; });
-  if (hline) g += `<line x1="${L}" x2="${W - R}" y1="${Y(hline.y)}" y2="${Y(hline.y)}" stroke="var(--ink-4)" stroke-dasharray="3 3"/><text x="${L + 6}" y="${Y(hline.y) - 7}" class="lbl">${esc(hline.label)}</text>`;
-  let lines = '';
+  for (let i = 0; i <= ticks; i++) { const v = (ymax / ticks) * i; g += `${i ? `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)"/>` : ''}<text x="${L - 10}" y="${Y(v) + 4}" text-anchor="end">${yFmt(v)}</text>`; }
+  const every = Math.max(1, Math.ceil(xs.length / Math.max(2, Math.floor((W - L - R) / 44))));
+  xs.forEach((x, i) => { if (i % every === 0 || i === xs.length - 1) g += `<text x="${X(x)}" y="${H - 9}" text-anchor="middle">W${x}</text>`; });
+  if (hline) g += `<line x1="${L}" x2="${W - R}" y1="${Y(hline.y)}" y2="${Y(hline.y)}" stroke="var(--ink-4)" stroke-dasharray="2 4" stroke-linecap="round"/><text x="${L + 6}" y="${Y(hline.y) - 7}" class="lbl" style="fill:var(--ink-3);font-weight:500">${esc(hline.label)}</text>`;
+  let lines = ''; const labels = [];
   for (const s of series) {
     const pts = s.points.filter(p => Number.isFinite(p.y));
     if (!pts.length) continue;
-    lines += `<polyline fill="none" stroke="${s.color}" stroke-width="${s.dash ? 1.75 : 2.25}" ${s.dash ? 'stroke-dasharray="5 5" stroke-opacity=".75"' : ''} stroke-linejoin="round" stroke-linecap="round" points="${pts.map(p => `${X(p.x)},${Y(p.y)}`).join(' ')}"/>`;
-    if (!s.dash) lines += pts.map(p => `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="3.5" fill="${s.color}" stroke="var(--surface)" stroke-width="2"/>`).join('');
+    lines += `<polyline fill="none" stroke="${s.color}" stroke-width="${s.dash ? 1.5 : 2}" ${s.dash ? 'stroke-dasharray="4 4" stroke-opacity=".7"' : ''} stroke-linejoin="round" stroke-linecap="round" points="${pts.map(p => `${X(p.x)},${Y(p.y)}`).join(' ')}"/>`;
+    if (!s.dash) lines += pts.map((p, i) => `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="${i === pts.length - 1 ? 4 : 2.75}" fill="${i === pts.length - 1 ? 'var(--surface)' : s.color}" stroke="${i === pts.length - 1 ? s.color : 'var(--surface)'}" stroke-width="${i === pts.length - 1 ? 2 : 1.5}"/>`).join('');
     const last = pts[pts.length - 1];
-    if (s.label !== false) lines += `<text x="${X(last.x) + 8}" y="${Y(last.y) + 4}" class="lbl">${esc(s.short || '')}</text>`;
+    if (s.label !== false && s.short) labels.push({ x: X(last.x) + 9, y: Y(last.y) + 4, text: s.short, color: s.color });
   }
+  labels.sort((a, b) => a.y - b.y);
+  for (let i = 1; i < labels.length; i++) if (Math.abs(labels[i].x - labels[i - 1].x) < 60 && labels[i].y - labels[i - 1].y < 14) labels[i].y = labels[i - 1].y + 14;
+  lines += labels.map(l => `<text x="${l.x}" y="${l.y}" class="lbl">${esc(l.text)}</text>`).join('');
   const hov = xs.map(x => {
     const rows = series.map(s => { const p = s.points.find(q => q.x === x); return p && Number.isFinite(p.y) ? `${s.name}: ${yFmt(p.y)}` : null; }).filter(Boolean);
     const w = (W - L - R) / Math.max(1, xs.length - 1);
     return rows.length ? `<rect x="${X(x) - w / 2}" y="${Tp}" width="${w}" height="${H - Tp - B}" fill="transparent" data-tip="${esc(`<b>Week ${x}</b><br>${rows.join('<br>')}`)}"/>` : '';
   }).join('');
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img">${g}<line x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--axis)"/>${lines}${hov}</svg>
-    <div class="legend">${series.map(s => `<span><i class="${s.dash ? 'dash' : ''}" style="border-color:${s.color}"></i>${esc(s.name)}</span>`).join('')}</div>`;
+  return `<svg class="chart" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img">${g}<line x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--axis)"/>${lines}${hov}</svg>`;
 }
+function fitCharts() {
+  document.querySelectorAll('.chart-wrap[data-chart]').forEach(el => {
+    const c = CHARTS[Number(el.dataset.chart)]; const w = Math.floor(el.clientWidth);
+    if (c && w > 0 && String(w) !== el.dataset.w) { el.dataset.w = String(w); el.innerHTML = chartSvg(c.series, c.opts, w); }
+  });
+}
+let fitRaf = 0;
+window.addEventListener('resize', () => { cancelAnimationFrame(fitRaf); fitRaf = requestAnimationFrame(fitCharts); });
 function paceChart() {
   const S = st.S; const ser = S.series || []; const plan = st.W.tables.pace;
   const maxW = Math.max(ser.length ? ser[ser.length - 1].week : 1, plan.length ? Math.max(...plan.map(p => Number(p.week))) : 0);
