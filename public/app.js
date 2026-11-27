@@ -4,6 +4,7 @@ import { snapshot, bottlenecks, drivers, simulateReallocation, dataQuality, cale
 import { WORKSPACES, loadWorkspace } from './lib/workspaces.js';
 import { validateOps, nextId } from './lib/ops.js';
 import { ico, decorate } from './lib/icons.js';
+import { startTour, tourSeen } from './tour.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -68,14 +69,17 @@ function render() {
   pill.textContent = s === 'supabase' ? 'Saved to Supabase' : s === 'file' ? 'Saved locally (dev)' : s === 'memory' ? 'Not persistent: add Supabase' : 'Offline';
   pill.title = st.server.error || (s === 'memory' ? 'SUPABASE_URL / SUPABASE_SECRET_KEY are not set on the server; edits disappear on restart.' : '');
   $('#nav').innerHTML = `<div class="nav-label">Menu</div>` + TABS.map(([id, label, stage]) => `<button data-tab="${id}" class="${st.tab === id ? 'on' : ''}">${ico(id)}<span>${label}${stage !== label ? `<small>${stage}</small>` : ''}</span></button>`).join('') +
-    `<div class="hint"><div class="hint-hd">${ico(st.W.simulated ? 'sparkles' : 'data')}<b>${esc(WORKSPACES[st.ws].short)}</b>${st.W.simulated ? '<span class="tag sim">Simulated</span>' : '<span class="tag src">Source</span>'}</div><p>${esc(WORKSPACES[st.ws].description)}</p><p class="hint-note">${ico('info')}Every number is recomputed from the records as of the selected date. Edits save to the database and update all views and the copilot.</p></div>
-    <div class="nav-foot"><span class="av">AB</span><span>Aditya Biswas<small>23HS10002 · IIT Kharagpur</small></span></div>`;
+    `${pulse()}
+    <div class="nav-foot"><span class="av">AB</span><span>Aditya Biswas<small>23HS10003 · IIT Kharagpur</small></span></div>`;
   const view = { overview, diagnose, decide, execute, data: dataView }[st.tab];
   const tab = TABS.find(x => x[0] === st.tab);
   CHARTS.length = 0;
   $('#main').innerHTML = decorate(view().replace('<h1>', `<div class="eyebrow"><span>${ico(tab[0])}</span>${esc(tab[2])}</div><h1>`));
   $('#copilot').classList.toggle('closed', !st.cpOpen);
   fitCharts();
+  const entering = st.lastTab !== st.tab || st.lastWs !== st.ws || st.lastAsOf !== st.asOf;
+  st.lastTab = st.tab; st.lastWs = st.ws; st.lastAsOf = st.asOf;
+  if (entering) animateIn($('#main'));
 }
 function banner() {
   const S = st.S;
@@ -111,11 +115,12 @@ function overview() {
   return `${banner()}<h1>${esc(S.workspace_name)}</h1>
     <p class="sub">As of ${fmtDate(S.as_of)} · week ${S.week} · ${daysToEvent > 0 ? `${daysToEvent} day${daysToEvent === 1 ? '' : 's'} to the festival` : 'festival date passed'} · sourcing window ${endOfDay(S.as_of) > ts(S.calendar.sourcing_ends + 'T23:59:59+05:30') ? 'closed' : `open until ${fmtDate(S.calendar.sourcing_ends)}`}${S.target ? ` · target: ${esc(S.target.target_version)}` : ''}</p>
     <div class="sec">Headline numbers</div>
-    <div class="grid g6">${iconTiles.join('')}</div>
+    <div class="grid g6" data-tour="kpis">${iconTiles.join('')}</div>
     <div class="sec">Funnel and pace</div>
-    <div class="grid g2"><div class="card"><h2>Sponsor funnel</h2>${funnel()}</div><div class="card"><h2>Pace: cumulative cash by week</h2>${paceChart()}</div></div>
+    <div class="grid g2"><div class="card" data-tour="funnel"><h2>Sponsor funnel</h2>${funnel()}</div><div class="card" data-tour="cash-funnel"><h2>Cash funnel <span class="muted small">₹, from pipeline to money in the bank</span></h2>${cashFunnel()}</div></div>
+    <div class="card" data-tour="pace"><h2>Pace: cumulative cash by week</h2>${paceChart()}</div>
     <div class="sec">Forecast and calls</div>
-    <div class="grid g2"><div class="card"><h2>How the projection is built</h2>${projectionTable()}</div><div class="card"><h2>Current calls by campaign</h2>${decisionList()}</div></div>
+    <div class="grid g2"><div class="card" data-tour="projection"><h2>How the projection is built</h2>${projectionTable()}</div><div class="card"><h2>Current calls by campaign</h2>${decisionList()}</div></div>
     <div class="sec">Campaigns</div>
     <div class="card"><h2>Campaign performance</h2>${campaignTable()}</div>`;
 }
@@ -159,7 +164,7 @@ function chartSvg(series, { xs, yFmt = inr, height = 230, hline } = {}, W = 720)
   for (const s of series) {
     const pts = s.points.filter(p => Number.isFinite(p.y));
     if (!pts.length) continue;
-    lines += `<polyline fill="none" stroke="${s.color}" stroke-width="${s.dash ? 1.5 : 2}" ${s.dash ? 'stroke-dasharray="4 4" stroke-opacity=".7"' : ''} stroke-linejoin="round" stroke-linecap="round" points="${pts.map(p => `${X(p.x)},${Y(p.y)}`).join(' ')}"/>`;
+    lines += `<polyline fill="none" stroke="${s.color}" stroke-width="${s.dash ? 1.5 : 2}" ${s.dash ? 'stroke-dasharray="4 4" stroke-opacity=".7"' : 'pathLength="1"'} stroke-linejoin="round" stroke-linecap="round" points="${pts.map(p => `${X(p.x)},${Y(p.y)}`).join(' ')}"/>`;
     if (!s.dash) lines += pts.map((p, i) => `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="${i === pts.length - 1 ? 4 : 2.75}" fill="${i === pts.length - 1 ? 'var(--surface)' : s.color}" stroke="${i === pts.length - 1 ? s.color : 'var(--surface)'}" stroke-width="${i === pts.length - 1 ? 2 : 1.5}"/>`).join('');
     const last = pts[pts.length - 1];
     if (s.label !== false && s.short) labels.push({ x: X(last.x) + 9, y: Y(last.y) + 4, text: s.short, color: s.color });
@@ -236,7 +241,7 @@ function diagnose() {
   const notes = dataQuality(st.W, S);
   const stalled = S.deals.filter(d => d.stalled).sort((a, b) => b.value - a.value);
   return `${banner()}<h1>Diagnose</h1><p class="sub">Which campaigns work, where the funnel leaks and what moved the numbers. As of ${fmtDate(S.as_of)}.</p>
-  <div class="grid g2">${B.campaigns.map(c => `<div class="card"><h2>${esc(c.campaign)} <span class="muted small">${esc(c.campaign_id)}</span></h2>
+  <div class="grid g2" data-tour="bottlenecks">${B.campaigns.map(c => `<div class="card"><h2>${esc(c.campaign)} <span class="muted small">${esc(c.campaign_id)}</span></h2>
     <p class="small">Bottleneck: <b class="${/None|Not enough/.test(c.bottleneck) ? '' : 'bad'}">${esc(c.bottleneck)}</b></p>
     ${c.stages.map(s => { const w = Math.min(1, s.actual / Math.max(s.benchmark, s.actual, 1e-9)); const m = Math.min(1, s.benchmark / Math.max(s.benchmark, s.actual, 1e-9)); return `<div class="stage" title="${esc(s.note || '')}"><div>${esc(s.stage)}<div class="muted">${s.enough_data ? `n=${num(s.n)}` : `n=${num(s.n)}, too few to judge`} · vs ${esc(s.benchmark_type)}</div></div>
       <div class="meter"><i style="width:${w * 100}%;background:${s.ratio >= 1 ? 'var(--good)' : s.ratio >= 0.9 ? 'var(--warn)' : 'var(--bad)'}"></i><b style="left:${m * 100}%"></b></div>
@@ -244,7 +249,8 @@ function diagnose() {
   </div>`).join('')}</div>
   <div class="card"><h2>Portfolio stage conversion</h2><table><thead><tr><th>Step</th><th class="n">From</th><th class="n">To</th><th class="n">Conversion</th></tr></thead><tbody>
     ${B.portfolio.map(p => `<tr><td>${esc(p.step)}${p.note ? `<div class="small muted">${esc(p.note)}</div>` : ''}</td><td class="n">${num(p.from)}</td><td class="n">${num(p.to)}</td><td class="n">${pct(p.rate)}</td></tr>`).join('')}</tbody></table></div>
-  <div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">What changed and why</h2>
+  <div class="card" data-tour="industry"><h2>Performance by industry <span class="muted small">which sponsor segments convert and pay</span></h2>${industryTable()}</div>
+  <div class="card" data-tour="drivers"><div class="row" style="justify-content:space-between"><h2 style="margin:0">What changed and why</h2>
     <div class="row small">From <input class="in" type="date" data-chg="drv-from" value="${from}"> to <input class="in" type="date" data-chg="drv-to" value="${to}"></div></div>
     ${D ? `<p class="small">Total: brands worked ${sign(D.total.brands_worked)}, meetings ${sign(D.total.meetings_held)}, signed ${sign(D.total.signed)} deals / ${signInr(D.total.signed_cash_inr)}, received ${signInr(D.total.received_inr)}, projection ${signInr(D.projection_change_inr)}.</p>
     <div class="tbl"><table><thead><tr><th>Campaign</th><th class="n">Brands</th><th class="n">Meetings</th><th class="n">Opps</th><th class="n">Signed ₹</th><th class="n">Received ₹</th><th class="n">Weighted pipeline</th><th class="n">Spend</th></tr></thead><tbody>
@@ -274,7 +280,7 @@ function decide() {
   const opts = sel => camps.map(c => `<option value="${c.id}" ${c.id === sel ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
   const bets = camps.filter(c => c.plan.base_incremental_inr || c.plan.stretch_incremental_inr).sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
   return `${banner()}<h1>Decide</h1><p class="sub">Scale, change or stop each campaign against thresholds set before launch, then move budget and create the follow-up.</p>
-  <div class="grid g6">${camps.map(c => { const d = S.decisions[c.id]; return `<div class="card tile dec ${esc(d.decision)}"><div class="ic">${ico(d.decision === 'scale' ? 'trend' : d.decision === 'stop' ? 'close' : d.decision === 'change' ? 'sliders' : 'clock')}</div><div class="k">${esc(c.name)}</div><div style="margin:6px 0">${badge(d.decision)}</div><div class="d">${esc(d.action || '')}</div>
+  <div class="grid g6" data-tour="calls">${camps.map(c => { const d = S.decisions[c.id]; return `<div class="card tile dec ${esc(d.decision)}"><div class="ic">${ico(d.decision === 'scale' ? 'trend' : d.decision === 'stop' ? 'close' : d.decision === 'change' ? 'sliders' : 'clock')}</div><div class="k">${esc(c.name)}</div><div style="margin:6px 0">${badge(d.decision)}</div><div class="d">${esc(d.action || '')}</div>
     ${d.action && ['scale', 'change', 'stop'].includes(d.decision) ? `<button class="btn sm" style="margin-top:8px" data-act="task-from-decision" data-id="${esc(c.id)}">Turn into task</button>` : ''}</div>`; }).join('')}</div>
   <div class="card"><h2>Rules <span class="muted small">primary rule decides; a breached guardrail turns Scale into Change and Change into Stop</span></h2><div class="tbl"><table>
     <thead><tr><th>Campaign</th><th>Role</th><th>Metric</th><th class="n">Value</th><th class="n">n / min</th><th class="n">Scale at</th><th class="n">Stop at</th><th>Status</th><th>Triggered action</th><th></th></tr></thead><tbody>
@@ -282,16 +288,18 @@ function decide() {
       <td class="n">${fmtMetric(r.metric, r.value)}</td><td class="n">${num(r.n)} / ${num(r.min_sample)}</td><td class="n">${fmtMetric(r.metric, r.scale_at)}</td><td class="n">${fmtMetric(r.metric, r.stop_at)}</td>
       <td>${badge(r.status)}</td><td class="small">${esc(r.action)}</td><td><button class="btn sm" data-act="edit-rule" data-id="${esc(r.rule_id)}">Edit</button></td></tr>`).join('')}</tbody></table></div>
     ${st.W.appAdded?.includes('rules') ? '<p class="small muted"><span class="tag app">App-added</span> These rules are not in the source data. They judge the finished 2025 campaigns on outcomes (meeting → signed for mature meetings).</p>' : ''}</div>
-  <div class="grid g2"><div class="card"><h2>Budget what-if</h2>
+  <div class="grid g2"><div class="card" data-tour="efficiency"><h2>Budget efficiency <span class="muted small">₹ of signed + weighted pipeline per ₹ spent</span></h2>${budgetEfficiency()}</div>
+  <div class="card" data-tour="whatif"><h2>Budget what-if</h2>
     <div class="form"><label>Move from<select class="in" data-chg="sim-from">${opts(st.sim.from)}</select></label><label>To<select class="in" data-chg="sim-to">${opts(st.sim.to)}</select></label><label>Amount (₹)<input class="in" type="number" min="0" step="1000" data-chg="sim-amt" value="${esc(st.sim.amt)}"></label></div>
     ${sim ? (sim.error ? `<p class="small bad">${esc(sim.error)}</p>` : `<p>Expected change: <b>${signInr(sim.expected_signed_change_inr)}</b> signed, <b>${signInr(sim.expected_collected_change_inr)}</b> collected.</p>
       <p class="small muted">${esc(sim.to.name)} gains ${num(sim.to.extra_brands, 1)} brands (headroom ${num(sim.to.headroom_brands)}) at ${inr(sim.to.cost_per_brand_inr)} each, worth ${inr(sim.to.value_per_brand_inr)} per brand before the marginal discount. ${esc(sim.from.name)} gives up ${num(sim.from.brands_given_up, 1)} unworked brands worth ${inr(sim.from.value_per_brand_inr)} each.</p>
       ${sim.warnings.map(w => `<p class="small warn">⚠ ${esc(w)}</p>`).join('')}
       <button class="btn primary sm" data-act="apply-shift">Apply budget move</button>`) : '<p class="muted small">Pick two different campaigns.</p>'}</div>
+  </div>
   <div class="card"><h2>The five bets</h2>${bets.length ? `<table><thead><tr><th>#</th><th>Bet</th><th class="n">Incremental collected (base / stretch)</th><th class="n">Budget</th><th>Plan call</th></tr></thead><tbody>
     ${bets.map(c => `<tr><td>${c.rank ?? ''}</td><td><b>${esc(c.name)}</b></td><td class="n">${inr(c.plan.base_incremental_inr)} / ${inr(c.plan.stretch_incremental_inr)}</td><td class="n">${inr(c.budget_inr)}</td><td class="small">${esc(c.decision_plan)}</td></tr>`).join('')}
     <tr><td></td><td><b>Total vs ₹14L "repeat 2025" baseline</b></td><td class="n"><b>${inr(bets.reduce((a, c) => a + (c.plan.base_incremental_inr || 0), 0))} / ${inr(bets.reduce((a, c) => a + (c.plan.stretch_incremental_inr || 0), 0))}</b></td><td class="n">${inr(bets.reduce((a, c) => a + (c.budget_inr || 0), 0))}</td><td></td></tr></tbody></table>
-    <p class="small muted">Ranked by expected incremental cash × confidence ÷ cost. Incremental = lift over repeating 2025 (₹20L signed × 70% assumed collection). All figures are plan assumptions.</p>` : '<p class="muted small">No plan figures in this workspace. Switch to the 2027 plan workspace to see the bets.</p>'}</div></div>`;
+    <p class="small muted">Ranked by expected incremental cash × confidence ÷ cost. Incremental = lift over repeating 2025 (₹20L signed × 70% assumed collection). All figures are plan assumptions.</p>` : '<p class="muted small">No plan figures in this workspace. Switch to the 2027 plan workspace to see the bets.</p>'}</div>`;
 }
 const fmtMetric = (m, v) => (v === null || v === undefined ? '—' : /_inr$/.test(m) ? inr(v) : m === 'brands_worked' ? num(v) : pct(v));
 
@@ -299,9 +307,139 @@ const fmtMetric = (m, v) => (v === null || v === undefined ? '—' : /_inr$/.tes
 function execute() {
   const sub = { tasks: tasksView, deals: dealsView, payments: paymentsView, campaigns: campaignsView, spend: spendView }[st.exec]();
   return `${banner()}<h1>Execute</h1><p class="sub">Campaigns, deals, payments, spend and tasks. Every change saves to the database and updates the analytics.</p>
-  <div class="tabs">${[['tasks', 'Tasks', 'tasks'], ['deals', 'Deals', 'handshake'], ['payments', 'Invoices & payments', 'receipt'], ['campaigns', 'Campaigns & budgets', 'megaphone'], ['spend', 'Spend', 'coins']].map(([k, l, i]) => `<button data-exec="${k}" class="${st.exec === k ? 'on' : ''}">${ico(i)}${l}</button>`).join('')}</div>${sub}`;
+  <div class="card" data-tour="workload"><h2>Owner workload <span class="muted small">open work per person, as of ${fmtDate(st.S.as_of)}</span></h2>${ownerWorkload()}</div>
+  <div class="tabs" data-tour="exec-tabs">${[['tasks', 'Tasks', 'tasks'], ['deals', 'Deals', 'handshake'], ['payments', 'Invoices & payments', 'receipt'], ['campaigns', 'Campaigns & budgets', 'megaphone'], ['spend', 'Spend', 'coins']].map(([k, l, i]) => `<button data-exec="${k}" class="${st.exec === k ? 'on' : ''}">${ico(i)}${l}</button>`).join('')}</div>${sub}`;
 }
 const owners = () => [...new Set([...st.W.tables.campaigns.map(c => c.owner_name), ...st.W.tables.tasks.map(t => t.owner_name), ...st.W.tables.brands.map(b => b.owner_name)].filter(Boolean))].sort();
+// ---------- added analytics (Part B coverage) ----------
+const cutOf = () => endOfDay(st.S.as_of);
+function hbar(label, value, max, sub, color = 'var(--s1)', right = '') {
+  const w = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
+  return `<div class="hbar"><div class="hbar-l">${label}${sub ? `<div class="muted">${sub}</div>` : ''}</div><div class="meter"><i style="width:${w * 100}%;background:${color}"></i></div><div class="n">${right}</div></div>`;
+}
+function cashFunnel() {
+  const S = st.S, t = S.totals, cut = cutOf();
+  const cash = S.deals.filter(d => d.support_type === 'cash');
+  const inPlay = cash.filter(d => d.is_open || d.stage === 'partner_confirmed').reduce((a, d) => a + (d.value || 0), 0);
+  const expected = t.signed_cash_inr + t.weighted_pipeline_inr;
+  const signed = t.signed_cash_inr;
+  const pays = st.W.tables.payments.filter(p => ts(p.invoiced_at) <= cut);
+  const invoiced = pays.reduce((a, p) => a + (Number(p.amount_inr) || 0), 0);
+  const collected = pays.filter(p => p.received_at && ts(p.received_at) <= cut).reduce((a, p) => a + (Number(p.amount_inr) || 0), 0);
+  const overdue = pays.filter(p => ts(p.due_at) < cut && !(p.received_at && ts(p.received_at) <= cut)).reduce((a, p) => a + (Number(p.amount_inr) || 0), 0);
+  const conv = (a, b) => (b > 0 ? `<span class="muted">${pct(a / b)}</span>` : '');
+  const rows = [
+    hbar('Cash deals in play', inPlay, inPlay, 'Open + signed cash opportunities, face value', 'var(--s1)', `<b>${inr(inPlay)}</b>`),
+    hbar('Expected value', expected, inPlay, 'Signed + open value × stage win probability', 'var(--s1)', `<b>${inr(expected)}</b> ${conv(expected, inPlay)}`),
+    hbar('Signed cash', signed, inPlay, `${t.signed_cash_deals} confirmed cash deals`, 'var(--s1)', `<b>${inr(signed)}</b> ${conv(signed, inPlay)}`),
+  ];
+  if (S.coverage.has_payments) {
+    rows.push(hbar('Invoiced', invoiced, inPlay, `${pays.length} invoices raised`, 'var(--s2)', `<b>${inr(invoiced)}</b> ${conv(invoiced, signed)}`));
+    rows.push(hbar('Collected', collected, inPlay, overdue ? `<span class="bad">${inr(overdue)} overdue</span>` : 'Nothing overdue', 'var(--s2)', `<b>${inr(collected)}</b> ${conv(collected, invoiced)}`));
+  }
+  return rows.join('') + `<p class="small muted">${S.coverage.has_payments ? 'Percent = share of the step before (invoiced and collected compare with signed and invoiced). Collected / invoiced is the live collection rate the projection assumes at ' + pct(S.projection.collection_rate) + '.' : 'No invoice or payment records exist in this workspace, so the funnel stops at signed cash.'}</p>`;
+}
+function industryTable() {
+  const S = st.S, cut = cutOf();
+  const ind = new Map(st.W.tables.brands.map(b => [b.brand_id, b.industry || 'Unspecified']));
+  const rows = {};
+  const row = k => (rows[k] ??= { brands: new Set(), opps: 0, signed: 0, signedInr: 0, open: 0, weighted: 0, received: 0 });
+  for (const it of st.W.tables.interactions) if (ts(it.occurred_at) <= cut) row(ind.get(it.brand_id) || 'Unspecified').brands.add(it.brand_id);
+  for (const d of S.deals) {
+    const r = row(ind.get(d.brand_id) || 'Unspecified'); r.opps++;
+    if (d.stage === 'partner_confirmed' && d.support_type === 'cash') { r.signed++; r.signedInr += d.value || 0; }
+    if (d.is_open) { r.open++; r.weighted += d.weighted || 0; }
+    r.received += d.received || 0;
+  }
+  const list = Object.entries(rows).sort((a, b) => b[1].signedInr - a[1].signedInr || b[1].weighted - a[1].weighted);
+  if (!list.length) return '<p class="muted small">No brands or deals yet.</p>';
+  const max = Math.max(1, ...list.map(([, r]) => r.signedInr + r.weighted));
+  return `<div class="tbl"><table><thead><tr><th>Industry</th><th class="n">Brands worked</th><th class="n">Opportunities</th><th class="n">Signed cash deals</th><th class="n">Win rate</th><th class="n">Avg signed deal</th><th class="n">Signed ₹</th><th class="n">Weighted open ₹</th><th>Signed + weighted</th></tr></thead><tbody>
+    ${list.map(([k, r]) => `<tr><td><b>${esc(k)}</b></td><td class="n">${num(r.brands.size)}</td><td class="n">${num(r.opps)}</td><td class="n">${num(r.signed)}</td><td class="n">${r.opps ? pct(r.signed / r.opps) : '—'}</td><td class="n">${r.signed ? inr(r.signedInr / r.signed) : '—'}</td><td class="n">${inr(r.signedInr)}</td><td class="n">${inr(r.weighted)}</td>
+      <td style="min-width:140px"><div class="meter stack"><i style="width:${(r.signedInr / max) * 100}%;background:var(--s1)"></i><i style="left:${(r.signedInr / max) * 100}%;width:${(r.weighted / max) * 100}%;background:var(--s1);opacity:.35"></i></div></td></tr>`).join('')}
+  </tbody></table></div><p class="small muted">Win rate = signed cash deals ÷ opportunities created. Industry comes from the brand record; brands worked = distinct brands with any interaction up to the view date.</p>`;
+}
+function budgetEfficiency() {
+  const S = st.S;
+  const camps = S.campaigns.filter(c => c.budget_inr > 0);
+  if (!camps.length) return '<p class="muted small">No budget or spend records in this workspace.</p>';
+  const ret = c => (c.type !== 'enabler' && c.spend_inr > 0 ? (c.signed_cash_inr + c.weighted_pipeline_inr) / c.spend_inr : null);
+  const list = [...camps].sort((a, b) => (ret(b) ?? -1) - (ret(a) ?? -1));
+  const maxR = Math.max(1, ...list.map(c => ret(c) || 0));
+  return `${list.map(c => { const r = ret(c); return `<div class="eff"><div class="eff-hd"><b>${esc(c.name)}</b> ${badge(S.decisions[c.id].decision)}</div>
+    <div class="eff-grid"><div><span class="muted small">Spent / budget</span><div class="meter"><i style="width:${Math.min(100, (c.spend_inr / c.budget_inr) * 100)}%;background:var(--s2)"></i></div><span class="small">${inr(c.spend_inr)} / ${inr(c.budget_inr)} · ${inr(Math.max(0, c.budget_inr - c.spend_inr))} left</span></div>
+    <div><span class="muted small">Return per ₹ spent</span><div class="meter"><i style="width:${r ? (r / maxR) * 100 : 0}%;background:var(--s1)"></i></div><span class="small"><b>${r === null ? '—' : `₹${num(r, 1)}`}</b>${c.type === 'enabler' ? ' <span class="muted">enabler: lifts every campaign, not attributable</span>' : ''}${c.cost_per_signed_inr ? ` · ${inr(c.cost_per_signed_inr)} per signed deal` : ''}</span></div></div></div>`; }).join('')}
+  <p class="small muted">Return = (signed cash + weighted open pipeline) ÷ spend to date. High return with budget left is where an extra rupee goes furthest; check the what-if for brand headroom before moving money.</p>`;
+}
+function ownerWorkload() {
+  const S = st.S, cut = cutOf(), soon = cut + 7 * 864e5;
+  const rows = {};
+  const row = k => (rows[k] ??= { open: 0, overdue: 0, due7: 0, deals: 0, stalled: 0, weighted: 0 });
+  for (const t of S.tasks) if (t.status !== 'done' && t.owner_name) { const r = row(t.owner_name); r.open++; if (t.overdue) r.overdue++; else if (t.due_date && ts(t.due_date + 'T23:59:59+05:30') <= soon) r.due7++; }
+  for (const d of S.deals) if (d.is_open && d.owner) { const r = row(d.owner); r.deals++; if (d.stalled) r.stalled++; r.weighted += d.weighted || 0; }
+  const list = Object.entries(rows).sort((a, b) => b[1].overdue - a[1].overdue || b[1].open - a[1].open);
+  if (!list.length) return '<p class="muted small">No open tasks or deals with an owner.</p>';
+  return `<div class="tbl"><table><thead><tr><th>Owner</th><th class="n">Open tasks</th><th class="n">Overdue</th><th class="n">Due in 7 days</th><th class="n">Open deals</th><th class="n">Stalled deals</th><th class="n">Weighted pipeline</th></tr></thead><tbody>
+    ${list.map(([k, r]) => `<tr><td><span class="who"><span class="av">${esc(k.split(' ').map(w => w[0]).join('').slice(0, 2))}</span><b>${esc(k)}</b></span></td><td class="n">${num(r.open)}</td><td class="n ${r.overdue ? 'bad' : ''}">${num(r.overdue)}</td><td class="n ${r.due7 ? 'warn' : ''}">${num(r.due7)}</td><td class="n">${num(r.deals)}</td><td class="n ${r.stalled ? 'bad' : ''}">${num(r.stalled)}</td><td class="n">${inr(r.weighted)}</td></tr>`).join('')}
+  </tbody></table></div>`;
+}
+
+// ---------- sidebar pulse ----------
+function pulse() {
+  const S = st.S; if (!S) return '';
+  const T = S.target || {}, P = S.projection, t = S.totals;
+  const daysToEvent = Math.max(0, Math.ceil((ts(S.calendar.event_starts_at) - endOfDay(S.as_of)) / 864e5));
+  const srcLeft = Math.max(0, Math.ceil((ts(S.calendar.sourcing_ends + 'T23:59:59+05:30') - endOfDay(S.as_of)) / 864e5));
+  const cashMode = !!T.cash_goal_inr;
+  const val = cashMode ? P.projected_collected_inr : t.signed, goal = cashMode ? T.cash_goal_inr : T.confirmed_partnerships_goal;
+  const p = goal ? Math.min(1.2, val / goal) : 0;
+  const overdue = S.tasks.filter(x => x.overdue).length;
+  const R = 34, C = 2 * Math.PI * R;
+  return `<div class="pulse" data-tour="pulse">
+    <div class="pulse-hd">Campaign pulse <span>Week ${S.week}</span></div>
+    <div class="pulse-ring"><svg viewBox="0 0 84 84" aria-hidden="true"><defs><linearGradient id="pg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--grad-a)"/><stop offset="1" stop-color="var(--grad-b)"/></linearGradient></defs>
+      <circle cx="42" cy="42" r="${R}" class="trk"/><circle cx="42" cy="42" r="${R}" class="val" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - Math.min(1, p))}" transform="rotate(-90 42 42)"/></svg>
+      <div><b>${goal ? pct(val / goal) : '—'}</b><small>${cashMode ? 'of base cash' : 'of partner goal'}</small></div></div>
+    <div class="pulse-kv"><span>${cashMode ? 'Projected' : 'Signed'}</span><b>${cashMode ? inr(val) : num(val)}</b></div>
+    <div class="pulse-kv"><span>${cashMode ? 'Base target' : 'Goal'}</span><b>${goal ? (cashMode ? inr(goal) : num(goal)) : '—'}</b></div>
+    <div class="pulse-stats"><div><b>${daysToEvent}</b><small>days to festival</small></div><div><b>${srcLeft}</b><small>sourcing days left</small></div></div>
+    <div class="pulse-alerts">${overdue ? `<span class="bad">${overdue} overdue task${overdue === 1 ? '' : 's'}</span>` : '<span class="good">No overdue tasks</span>'}${t.stalled ? `<span class="warn">${t.stalled} stalled deal${t.stalled === 1 ? '' : 's'}</span>` : ''}</div>
+    <button class="btn sm pulse-tour" data-tour-start>${ico('sparkles')}Take the guided tour</button>
+  </div>`;
+}
+
+// ---------- motion ----------
+const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+function animateIn(root) {
+  if (!root || reduceMotion()) return;
+  [...root.children].forEach((el, i) => el.style.setProperty('--i', Math.min(i, 14)));
+  root.classList.remove('enter'); void root.offsetWidth; root.classList.add('enter');
+  clearTimeout(animateIn.t); animateIn.t = setTimeout(() => root.classList.remove('enter'), 1400);
+  root.querySelectorAll('.tile .v').forEach(el => {
+    const node = [...el.childNodes].find(n => n.nodeType === 3 && /\d/.test(n.textContent)); if (!node) return;
+    const final = node.textContent; const m = final.match(/\d[\d,]*(?:\.\d+)?/); if (!m) return;
+    const target = parseFloat(m[0].replace(/,/g, '')); if (!Number.isFinite(target)) return;
+    const dec = (m[0].split('.')[1] || '').length, comma = m[0].includes(','); const t0 = performance.now();
+    const step = now => {
+      if (!node.isConnected) return;
+      const k = Math.min(1, (now - t0) / 750), e = 1 - Math.pow(1 - k, 3), v = target * e;
+      const txt = comma ? v.toLocaleString('en-IN', { minimumFractionDigits: dec, maximumFractionDigits: dec }) : v.toFixed(dec);
+      node.textContent = k < 1 ? final.replace(m[0], txt) : final;
+      if (k < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
+}
+
+// ---------- theme ----------
+function applyTheme(t, animate) {
+  const root = document.documentElement;
+  if (animate && !reduceMotion()) { root.classList.add('theme-anim'); setTimeout(() => root.classList.remove('theme-anim'), 400); }
+  root.dataset.theme = t; LS.set('theme', t);
+  const b = $('#theme-toggle'); if (b) { b.setAttribute('aria-pressed', String(t === 'dark')); b.title = t === 'dark' ? 'Switch to day mode' : 'Switch to night mode'; }
+  render && st.S && fitCharts();
+}
+
 function tasksView() {
   const f = st.taskF; let rows = st.S.tasks;
   if (f.status === 'open') rows = rows.filter(t => t.status !== 'done'); else if (f.status === 'overdue') rows = rows.filter(t => t.overdue); else if (f.status) rows = rows.filter(t => t.status === f.status);
@@ -365,7 +503,7 @@ function dataView() {
   const origin = st.W.simulated ? '<span class="tag sim">Simulated</span>' : st.W.appAdded?.includes(t) ? '<span class="tag app">App-added</span>' : ['payments', 'spend', 'tasks', 'pace'].includes(t) ? '<span class="tag">App table</span>' : '<span class="tag src">Source data</span>';
   const edited = all.filter(r => st.W.editedIds.has(`${t}:${r[spec.pk]}`)).length;
   return `${banner()}<h1>Data & settings</h1><p class="sub">Inspect and edit any record, import a CSV, change assumptions, or reset. ${st.W.editCount + st.W.deleteCount} saved edit(s) on top of the seed data in this workspace.</p>
-  <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:10px"><div class="row"><select class="in" data-chg="data-table">${Object.entries(TABLES).map(([k, s]) => `<option value="${k}" ${k === t ? 'selected' : ''}>${esc(s.label)} (${st.W.tables[k].length})</option>`).join('')}</select>${origin}${edited ? `<span class="tag">${edited} edited</span>` : ''}
+  <div class="card" data-tour="records"><div class="row" style="justify-content:space-between;margin-bottom:10px"><div class="row"><select class="in" data-chg="data-table">${Object.entries(TABLES).map(([k, s]) => `<option value="${k}" ${k === t ? 'selected' : ''}>${esc(s.label)} (${st.W.tables[k].length})</option>`).join('')}</select>${origin}${edited ? `<span class="tag">${edited} edited</span>` : ''}
     <input class="in" placeholder="Search…" value="${esc(st.dataSearch)}" data-chg="data-search"></div>
     <div class="row"><button class="btn sm" data-act="row-new">+ Row</button><label class="btn sm">Import CSV<input type="file" accept=".csv,text/csv" hidden data-chg="csv"></label><button class="btn sm" data-act="csv-export">Export CSV</button></div></div>
     ${spec.history ? `<p class="small muted">History table: each row is a full-state version. Analytics use the latest version per ${esc(spec.history)} on or before the view date. Add a new version rather than editing old ones.</p>` : ''}
@@ -638,6 +776,7 @@ function toast(text, err) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => d.remove(), err ? 6000 : 3000);
 }
 document.addEventListener('click', e => {
+  if (e.target.closest('[data-tour-start]')) { runTour(); return; }
   const t = e.target.closest('[data-tab]'); if (t) { st.tab = t.dataset.tab; render(); $('#main').scrollTop = 0; return; }
   const x = e.target.closest('[data-exec]'); if (x) { st.exec = x.dataset.exec; render(); return; }
   const a = e.target.closest('[data-act]'); if (a && actions[a.dataset.act]) { actions[a.dataset.act](a, e); return; }
@@ -656,4 +795,14 @@ $('#ws').addEventListener('change', e => loadWs(e.target.value));
 $('#asof').addEventListener('change', e => { if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) { st.asOf = e.target.value; st.drv = { from: null, to: null }; recompute(); renderCopilot(); } });
 $('#latest').addEventListener('click', () => { st.asOf = calendar(st.W).defaultAsOf; recompute(); renderCopilot(); });
 $('#cp-toggle').addEventListener('click', () => { st.cpOpen = !st.cpOpen; render(); if (st.cpOpen) renderCopilot(); });
-loadWs(st.ws);
+$('#theme-toggle').addEventListener('click', () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', true));
+$('#tour-btn').addEventListener('click', () => runTour());
+function runTour() {
+  startTour({
+    goTab: tab => { if (st.tab !== tab) { st.tab = tab; render(); $('#main').scrollTop = 0; } },
+    openCopilot: () => { if (!st.cpOpen) { st.cpOpen = true; render(); renderCopilot(); } },
+    isMobile: () => window.innerWidth <= 760,
+  });
+}
+applyTheme(document.documentElement.dataset.theme || 'light', false);
+loadWs(st.ws).then(() => { if (!tourSeen()) setTimeout(runTour, 900); });
