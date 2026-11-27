@@ -115,7 +115,7 @@ The meeting → signed conversion uses **mature meetings only**: those held at l
 |---|---|
 | Measure: funnel, campaign KPIs, targets vs actuals, conversion, budgets, projection | **Overview**: tiles, funnel, weekly pace vs plan, projection build-up, campaign table |
 | Diagnose: winners, underperformers, bottlenecks, drivers | **Diagnose**: per-campaign stage vs plan (or portfolio) with bottleneck, portfolio conversion, "what changed" between any two dates, stalled deals, data-quality notes |
-| Support decisions | **Decide**: scale/change/stop calls, editable rules, budget what-if, ranked bets |
+| Support decisions | **Decide**: scale/change/stop calls, editable rules, budget what-if (marginal model: extra brands at plan cost per brand, valued at a blend of observed and plan value per brand, discounted to 75% and capped by the receiving campaign's brand headroom), ranked bets |
 | Manage execution | **Execute**: tasks (owner, due date, status, priority), deals (stage changes as new dated versions), invoices and payments, campaigns and budgets, spend ledger. **Data**: edit any table, CSV import/export, assumptions, activity log, reset |
 | AI copilot | Right panel on every page |
 
