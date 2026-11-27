@@ -134,24 +134,24 @@ function funnel() {
   }).join('') + `<p class="small muted">Percent = conversion from the previous step of the same population. Qualified brands and opportunities are separate records, so they show counts only.</p>`;
 }
 function lineChart(series, { xs, yFmt = inr, height = 230, hline } = {}) {
-  const W = 560, H = height, L = 54, R = 70, Tp = 12, B = 26;
+  const W = 720, H = Math.round(height * 1.2), L = 58, R = 72, Tp = 14, B = 30;
   const ys = series.flatMap(s => s.points.map(p => p.y)).filter(Number.isFinite).concat(hline ? [hline.y] : []);
   const ymax = Math.max(1, ...ys) * 1.08;
   const xmin = xs[0], xmax = xs[xs.length - 1];
   const X = x => L + ((x - xmin) / Math.max(1, xmax - xmin)) * (W - L - R);
   const Y = y => Tp + (1 - y / ymax) * (H - Tp - B);
   const ticks = 4; let g = '';
-  for (let i = 0; i <= ticks; i++) { const v = (ymax / ticks) * i; g += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${L - 6}" y="${Y(v) + 4}" text-anchor="end">${yFmt(v)}</text>`; }
-  xs.forEach(x => { g += `<text x="${X(x)}" y="${H - 8}" text-anchor="middle">W${x}</text>`; });
-  if (hline) g += `<line x1="${L}" x2="${W - R}" y1="${Y(hline.y)}" y2="${Y(hline.y)}" stroke="var(--ink-3)" stroke-dasharray="2 4"/><text x="${L + 4}" y="${Y(hline.y) - 5}" class="lbl">${esc(hline.label)}</text>`;
+  for (let i = 0; i <= ticks; i++) { const v = (ymax / ticks) * i; g += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)"/><text x="${L - 10}" y="${Y(v) + 4}" text-anchor="end">${yFmt(v)}</text>`; }
+  xs.forEach(x => { g += `<text x="${X(x)}" y="${H - 9}" text-anchor="middle">W${x}</text>`; });
+  if (hline) g += `<line x1="${L}" x2="${W - R}" y1="${Y(hline.y)}" y2="${Y(hline.y)}" stroke="var(--ink-4)" stroke-dasharray="3 3"/><text x="${L + 6}" y="${Y(hline.y) - 7}" class="lbl">${esc(hline.label)}</text>`;
   let lines = '';
   for (const s of series) {
     const pts = s.points.filter(p => Number.isFinite(p.y));
     if (!pts.length) continue;
-    lines += `<polyline fill="none" stroke="${s.color}" stroke-width="2" ${s.dash ? 'stroke-dasharray="5 4"' : ''} stroke-linejoin="round" points="${pts.map(p => `${X(p.x)},${Y(p.y)}`).join(' ')}"/>`;
-    if (!s.dash) lines += pts.map(p => `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="3" fill="${s.color}" stroke="var(--surface)" stroke-width="2"/>`).join('');
+    lines += `<polyline fill="none" stroke="${s.color}" stroke-width="${s.dash ? 1.75 : 2.25}" ${s.dash ? 'stroke-dasharray="5 5" stroke-opacity=".75"' : ''} stroke-linejoin="round" stroke-linecap="round" points="${pts.map(p => `${X(p.x)},${Y(p.y)}`).join(' ')}"/>`;
+    if (!s.dash) lines += pts.map(p => `<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="3.5" fill="${s.color}" stroke="var(--surface)" stroke-width="2"/>`).join('');
     const last = pts[pts.length - 1];
-    if (s.label !== false) lines += `<text x="${X(last.x) + 6}" y="${Y(last.y) + 4}" class="lbl">${esc(s.short || '')}</text>`;
+    if (s.label !== false) lines += `<text x="${X(last.x) + 8}" y="${Y(last.y) + 4}" class="lbl">${esc(s.short || '')}</text>`;
   }
   const hov = xs.map(x => {
     const rows = series.map(s => { const p = s.points.find(q => q.x === x); return p && Number.isFinite(p.y) ? `${s.name}: ${yFmt(p.y)}` : null; }).filter(Boolean);
