@@ -83,7 +83,7 @@ function render() {
 }
 function banner() {
   const S = st.S;
-  if (S.simulated) return `<div class="banner"><b>Simulated plan workspace.</b> A next-edition campaign running the five bets, frozen at the end of week ${S.week}. Use it to test the workflow: change any record and every number updates. The original 2025 data is in the other workspace.</div>`;
+  if (S.simulated) return '';
   return `<div class="banner src"><b>Original 2025 dataset</b> (synthetic, provided with the brief): import-retry duplicates removed (${Object.entries(S.quality.duplicatesRemoved).map(([k, v]) => `${v} ${k}`).join(', ') || 'none'}), latest version per entity as of the selected date. <b>No payment records exist</b>, so cash collected is not measurable here.</div>`;
 }
 function tile(k, v, d, barPct, markPct) {
