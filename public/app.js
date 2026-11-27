@@ -239,7 +239,7 @@ function dealTable(rows, withTask) {
 function decide() {
   const S = st.S;
   const camps = S.campaigns;
-  if (!st.sim.from) { st.sim.from = camps[camps.length - 1]?.id || ''; st.sim.to = camps[0]?.id || ''; }
+  if (!st.sim.from) { const costed = camps.filter(c => c.plan?.base_brands > 0 && c.budget_inr > 0); st.sim.from = (costed[costed.length - 1] || camps[camps.length - 1])?.id || ''; st.sim.to = (costed.find(c => c.id !== st.sim.from && (c.plan.stretch_brands || 0) > Math.max(c.plan.base_brands, c.brands_worked || 0)) || costed.find(c => c.id !== st.sim.from) || camps[0])?.id || ''; }
   const sim = st.sim.from && st.sim.to && st.sim.from !== st.sim.to ? simulateReallocation(S, st.sim.from, st.sim.to, Number(st.sim.amt) || 0) : null;
   const opts = sel => camps.map(c => `<option value="${c.id}" ${c.id === sel ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
   const bets = camps.filter(c => c.plan.base_incremental_inr || c.plan.stretch_incremental_inr).sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
